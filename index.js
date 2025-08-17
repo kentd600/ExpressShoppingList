@@ -42,6 +42,7 @@ app.post('/items', (rq, rs, next) => {
             errors.push({...item, error: "Duplicate item."});
         } else {
             result.push({ name, price });
+            dupCheck.add(name);
             db.push({ name, price });
         }
     }
@@ -58,17 +59,20 @@ app.get('/items/:name', (rq, rs, next) => {
             return rs.status(200).json(db[idx]);
         }
     }
-    next(generateExpressError("Item not found.", 404));
+    return next(generateExpressError("Item not found.", 404));
 })
 
 app.patch('/items/:name', (rq, rs, next) => {
     const toPatch = rq.params.name;
     if (Array.isArray(rq.body)) {
-        next(generateExpressError("Json array was provided where object is expected.", 400));
+        return next(generateExpressError("Json array was provided where object is expected.", 400));
     }
     const { name, price } = normalizeKeys(rq.body);
     if (!name || !price) {
-        next(generateExpressError("Name or price not specified.", 400));
+        return next(generateExpressError("Name or price not specified.", 400));
+    }
+    if (name !== toPatch.toLowerCase() && dupCheck.has(name)) {
+        return next(generateExpressError("Updated name is a duplicate.", 400))
     }
     for (idx in db) {
         if (toPatch.toLowerCase() === db[idx].name) {
@@ -79,19 +83,19 @@ app.patch('/items/:name', (rq, rs, next) => {
             return rs.status(200).json({ prev, updated: db[idx] });
         }
     }
-    next(generateExpressError("Item not found.", 404));
+    return next(generateExpressError("Item not found.", 404));
 })
 
 app.delete('/items/:name', (rq, rs, next) => {
     const toDelete = rq.params.name;
     for (idx in db) {
         if (toDelete.toLowerCase() === db[idx].name) {
-            const deleted = db.splice(idx, 1);
+            const [deleted] = db.splice(idx, 1);
             dupCheck.delete(deleted.name);
             return rs.status(200).json({ deleted });
         }
     }    
-    next(generateExpressError("Item not found.", 404));
+    return next(generateExpressError("Item not found.", 404));
 })
 
 app.use((e, rq, rs, next) => {
